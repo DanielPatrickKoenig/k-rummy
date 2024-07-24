@@ -232,7 +232,7 @@ class TurnStartModal(BaseModal):
         self.add_label(text='Do you want to lay down some cards?', container=top_box)
 
         bottom_box = BoxLayout()
-        self.add_button(text="yes", container=bottom_box)
+        self.add_button(text="yes", container=bottom_box, action=self.on_yes)
         self.add_button(text="no", container=bottom_box, action=self.on_no)
 
         self.add_widget(top_box)
@@ -250,6 +250,18 @@ class TurnStartModal(BaseModal):
             GameManager.INSTANCE.create_modal(self.parent,buttons=buttons,label=label)
         else:
             self.discard_modal()
+    
+    def on_yes(self, data=None):
+        options = GameManager.INSTANCE.get_options()['options']
+        opps = GameManager.INSTANCE.get_opps()['opps']
+        if len(options) or len(opps):
+            GameManager.INSTANCE.open_match_maker_modal(self.parent)
+        else:
+            buttons = [
+                {'text':'Ok', 'action': self.discard_modal},
+            ]
+            label = {'text':'Sorry, you cannot create any matches.'}
+            GameManager.INSTANCE.create_modal(self.parent,buttons=buttons,label=label)
     
     def discard_modal(self):
         GameManager.INSTANCE.open_discard_modal(self.parent)
