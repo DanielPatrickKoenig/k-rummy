@@ -10,6 +10,7 @@ class GameManager():
     def __init__(self):
         self.game = RummyGame(player_list=["computer", "human"])
         self.stage = None
+        self.start_turn = None
         GameManager.INSTANCE = self
     
     def execute_turn(self, data=None):
@@ -180,6 +181,8 @@ class GameLayout(RelativeLayout):
         if player_type == 'human':
             modal = TurnStartModal(self)
             modal.open_modal()
+        else:
+            GameManager.INSTANCE.start_turn()
 
 class BaseModal(BoxLayout):
     OPEN_MODALS = []
@@ -223,6 +226,10 @@ class BaseModal(BoxLayout):
     
     def close_modal(self):
         self.parent_widget.remove_widget(self)
+    
+    def close_open_modals(self):
+        for modal in BaseModal.OPEN_MODALS:
+            modal.close_modal()
         
     
 class TurnStartModal(BaseModal):
@@ -287,7 +294,18 @@ class DiscardModal(BaseModal):
 
     def on_card_selected(self, card):
         print('card to discard')
-        print(card)
+        # print(card)
+        indexed_hand = [{ 'card': n['card'], 'suite': n['suite'], 'index': index } for index, n in enumerate(GameManager.INSTANCE.game.get_current_player()['hand'])]
+        filtered_selection = list(filter(lambda x: x['card'] == card['card'] and x['suite'] == card['suite'], indexed_hand))
+        print(filtered_selection)
+        if len(filtered_selection) > 0:
+            GameManager.INSTANCE.game.discard(filtered_selection[0]['index'])
+        
+        GameManager.INSTANCE.game.finish_turn()
+        self.close_open_modals()
+
+        GameManager.INSTANCE.start_turn()
+        
         # discard selected card
         # end turn
 
@@ -327,11 +345,39 @@ class MatchMakerModal(BaseModal):
         print(card)
     
     def on_card_deselected(self, card):
-        print('remove card from match')
+        self.current_match = list(filter(lambda x: not (x['card'] == card['card'] and x['suite'] == card['suite']), self.current_match))
+        self.match_pile.set_cards(self.current_match)
 
     def add_match(self):
         print('create match')
-    
+        enough_cards = len(self.current_match) >= GameManager.INSTANCE.game.match_min_length
+        same_nums = len(list(filter(lambda x: x['card'] == self.current_match[0]['card'], self.current_match))) == len(self.current_match)
+        same_suite = len(list(filter(lambda x: x['suite'] == self.current_match[0]['suite'], self.current_match))) == len(self.current_match)
+        consecutive = True
+        sorted_matches = list(sorted(self.current_match, key=lambda x: x['card']))
+        for i, n in enumerate(sorted_matches):
+            if i > 0:
+                if n['card'] - sorted_matches[i-1]['card'] == 1 and consecutive:
+                    consecutive = True
+                else:
+                    consecutive = False
+
+        print('enough cards')
+        print(enough_cards)
+        print('same num')
+        print(same_nums)
+        print('same suite')
+        print(same_suite)
+        print('consecutive')
+        print(consecutive)
+
+        valid_set = enough_cards and (same_nums or (same_suite and consecutive))
+        if valid_set:
+            GameManager.INSTANCE.game.add_set(GameManager.INSTANCE.game.get_current_player(), self.current_match)
+            # clear matches
+            # check for more matches
+            # send to discard or add to set modal
+            GameManager.INSTANCE.open_discard_modal(self.parent) # temp
 
 
 
@@ -339,6 +385,7 @@ class RummyApp(App):
     def build(self):
         manager = GameManager()
         game_layout = GameLayout()
+        manager.start_turn = game_layout.turn_action
         manager.stage = game_layout
         return game_layout
 
